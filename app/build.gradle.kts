@@ -16,6 +16,8 @@
  *     باید keystore.properties تنظیم شود).
  * ═══════════════════════════════════════════════════════════════════════════
  */
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -25,7 +27,7 @@ plugins {
 
 // ── کلید امضای release (اختیاری — از keystore.properties خوانده می‌شود) ────
 val keystorePropsFile = rootProject.file("keystore.properties")
-val keystoreProps = java.util.Properties().apply {
+val keystoreProps = Properties().apply {
     if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
 }
 val hasReleaseKeystore = keystorePropsFile.exists() &&
