@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
+import ir.atiran.vizitor.util.lineAmount
 import ir.atiran.vizitor.util.parseAmount
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -414,7 +415,7 @@ private fun CartLine(
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    (item.quantity.toLong() * item.unitPrice).toFaPrice(),
+                    lineAmount(item.quantity, item.unitPrice).toFaPrice(),
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.ExtraBold,
                         color = NeonGreen

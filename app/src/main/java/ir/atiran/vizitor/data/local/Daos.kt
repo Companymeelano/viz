@@ -141,7 +141,7 @@ interface CartDao {
     @Query("DELETE FROM cart_items")
     suspend fun clear()
 
-    @Query("SELECT COALESCE(SUM(quantity * unitPrice), 0) FROM cart_items")
+    @Query("SELECT COALESCE(CAST(ROUND(SUM(quantity * unitPrice)) AS INTEGER), 0) FROM cart_items")
     fun observeTotal(): Flow<Long>
 
     @Query("SELECT COALESCE(SUM(quantity), 0) FROM cart_items")

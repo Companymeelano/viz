@@ -30,6 +30,7 @@ import ir.atiran.vizitor.data.remote.LoginRequest
 import ir.atiran.vizitor.data.remote.InvoiceLineRequest
 import ir.atiran.vizitor.data.remote.NewCustomerRequest
 import ir.atiran.vizitor.data.remote.RetrofitClient
+import ir.atiran.vizitor.util.lineAmount
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -203,7 +204,10 @@ class VizitorRepository(private val context: Context) {
     ): InvoiceEntity {
         val items = db.cart().getAll()
         require(items.isNotEmpty()) { "سبد سفارش خالی است" }
-        val gross = items.sumOf { it.quantity.toLong() * it.unitPrice }
+        // مبلغ هر سطر با گرد کردن درست (نه بریدن اعشار) و جمع فاکتور = مجموع همان سطرها
+        // تا grossAmount فاکتور دقیقاً با جمع lineTotal اقلام بخواند.
+        val lineTotals = items.map { lineAmount(it.quantity, it.unitPrice) }
+        val gross = lineTotals.sum()
         // نسخه ۱٫۶٫۰ — تخفیفات و کسورات به درخواست کارفرما حذف شد
         val discount = 0L
         val sig = signaturePng?.let {
@@ -222,14 +226,15 @@ class VizitorRepository(private val context: Context) {
             )
         )
         db.invoices().insertItems(
-            items.map {
+            items.mapIndexed { index, row ->
                 InvoiceItemEntity(
                     invoiceId = headerId,
-                    productId = it.productId,
-                    productName = it.productName,
-                    quantity = it.quantity,
-                    unitPrice = it.unitPrice,
-                    lineTotal = (it.quantity * it.unitPrice).toLong()
+                    productId = row.productId,
+                    productName = row.productName,
+                    quantity = row.quantity,
+                    unitPrice = row.unitPrice,
+                    // همان مقداری که در جمع فاکتور استفاده شد — سطر و جمع همیشه می‌خوانند
+                    lineTotal = lineTotals[index]
                 )
             }
         )
