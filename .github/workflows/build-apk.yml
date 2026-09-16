@@ -1,0 +1,160 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  Vizitor — آتیران ویزیتور | بیلد خودکار APK (debug + release) و انتشار ریلیز
+#  Developed by Milano Technical Team, Milad Yaghoobi
+#  ─────────────────────────────────────────────────────────────────────────
+#  خروجی‌ها در هر اجرا:
+#   • Artifact: Vizitor-v<version>-debug.apk   (برای تست — نصب‌شدنی)
+#   • Artifact: Vizitor-v<version>-release.apk (بهینه‌شده با R8)
+#   • GitHub Release با تگ v<version> و هر دو فایل APK به‌عنوان Asset
+#     (لینک دانلود دائمی، بدون انقضای آرتیفکت‌ها)
+#
+#  اگر keystore.properties در ریشهٔ پروژه نباشد، نسخهٔ release با کلید debug
+#  امضا می‌شود تا همیشه نصب‌شدنی باشد؛ برای انتشار رسمی کلید را تنظیم کنید.
+# ═══════════════════════════════════════════════════════════════════════════
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, arena/01a0a879-viz]
+    paths-ignore:
+      - '**.md'
+      - 'design/**'
+      - '**.zip'
+      # تغییرات بستهٔ سرور، بیلد APK را بی‌دلیل تکرار نکنند
+      # (انتشار بستهٔ سرور در گردش‌کار release-server.yml انجام می‌شود)
+      - 'server/**'
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build debug + release APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Toolchain info
+        run: |
+          java -version
+          gradle --version
+          echo "VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -1)" >> "$GITHUB_ENV"
+
+      # ── ۱) APK دیباگ ────────────────────────────────────────────────────
+      - name: Build debug APK
+        run: |
+          set +e
+          gradle clean assembleDebug --no-daemon --console=plain --stacktrace 2>&1 | tee build-debug.log
+          rc=${PIPESTATUS[0]}
+          [ "$rc" -eq 0 ] || ./scripts/report-gradle-errors.sh build-debug.log "debug"
+          exit "$rc"
+
+      - name: Collect debug APK
+        run: |
+          set -euo pipefail
+          mkdir -p apk-out
+          cp app/build/outputs/apk/debug/app-debug.apk "apk-out/Vizitor-v${VERSION}-debug.apk"
+          ls -la apk-out/
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vizitor-v${{ env.VERSION }}-debug
+          path: apk-out/Vizitor-v${{ env.VERSION }}-debug.apk
+          if-no-files-found: error
+
+      # ── ۲) APK ریلیز — شکست آن، آرتیفکت دیباگ را باطل نمی‌کند ────────────
+      - name: Build release APK
+        id: build_release
+        continue-on-error: true
+        run: |
+          set +e
+          gradle assembleRelease --no-daemon --console=plain --stacktrace 2>&1 | tee build-release.log
+          rc=${PIPESTATUS[0]}
+          [ "$rc" -eq 0 ] || ./scripts/report-gradle-errors.sh build-release.log "release"
+          exit "$rc"
+
+      - name: Collect release APK
+        if: steps.build_release.outcome == 'success'
+        run: |
+          set -euo pipefail
+          cp app/build/outputs/apk/release/app-release.apk "apk-out/Vizitor-v${VERSION}-release.apk"
+          ls -la apk-out/
+
+      - name: Upload release APK
+        if: steps.build_release.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vizitor-v${{ env.VERSION }}-release
+          path: apk-out/Vizitor-v${{ env.VERSION }}-release.apk
+          if-no-files-found: error
+
+      # ── ۳) انتشار ریلیز با لینک دانلود دائمی ───────────────────────────
+      - name: Publish GitHub Release
+        if: steps.build_release.outcome == 'success' && github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: "آتیران ویزیتور — نسخه ${{ env.VERSION }}"
+          body: |
+            ## آتیران ویزیتور — نسخه ${{ env.VERSION }}
+
+            اپلیکیشن ویزیتور پخش آجیل و خشکبار (کاتالوگ زنده، سبد سفارش، فاکتور با امضای
+            دیجیتال، مشتریان و اعتبار، گردش حساب، اسکنر بارکد و همگام‌سازی با سرور آتیران).
+
+            ### 📲 فایل‌های نصب
+            - **Vizitor-v${{ env.VERSION }}-release.apk** → نسخهٔ بهینه‌شده (R8) — مناسب نصب روی گوشی
+            - **Vizitor-v${{ env.VERSION }}-debug.apk** → نسخهٔ آزمایشی با شناسهٔ جدا (`ir.atiran.vizitor.debug`)
+
+            > پیش از نصب، در تب «تنظیمات» اپ: آدرس سرور، پورت و کلید API آتیران را وارد کنید.
+          files: |
+            apk-out/Vizitor-v${{ env.VERSION }}-release.apk
+            apk-out/Vizitor-v${{ env.VERSION }}-debug.apk
+          fail_on_unmatched_files: true
+
+      # ── ۴) خلاصه ────────────────────────────────────────────────────────
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## نتیجهٔ بیلد Vizitor — نسخه ${VERSION:-?}"
+            echo ""
+            if [ "${{ steps.build_release.outcome }}" = "success" ]; then
+              echo "- ✅ **release**: \`Vizitor-v${VERSION}-release.apk\` (R8، امضاشده)"
+              echo "- ✅ **debug**: \`Vizitor-v${VERSION}-debug.apk\`"
+            else
+              echo "- ✅ **debug**: \`Vizitor-v${VERSION}-debug.apk\`"
+              echo "- ❌ **release** ناموفق — خطاها در Annotation بالای همین Job"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build logs (فقط در صورت خطا)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            build-debug.log
+            build-release.log
+          if-no-files-found: ignore
