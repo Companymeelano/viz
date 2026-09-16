@@ -121,6 +121,7 @@ fun SettingsScreen(viewModel: VizitorViewModel) {
     var dbPort by remember(config.dbPort) { mutableStateOf(config.dbPort.toString()) }
     var apiPath by remember(config.apiPath) { mutableStateOf(config.apiPath) }
     var apiKey by remember(config.apiKey) { mutableStateOf(config.apiKey) }
+    var useHttps by remember(config.useHttps) { mutableStateOf(config.useHttps) }
     var workerUrl by remember(config.workerUrl) { mutableStateOf(config.workerUrl) }
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
@@ -208,6 +209,31 @@ fun SettingsScreen(viewModel: VizitorViewModel) {
                         singleLine = true, colors = fieldColors,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    // ── کلید اتصال امن: خاموش برای شبکهٔ داخلی (سرور HTTP) ────
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "اتصال امن (HTTPS)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = palette.textPrimary
+                            )
+                            Text(
+                                if (useHttps) "برای دامنه با گواهی معتبر؛ سرور باید روی HTTPS باشد"
+                                else "برای شبکهٔ داخلی شرکت؛ نصب پیش‌فرض سرور روی HTTP است",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = palette.textSecondary
+                            )
+                        }
+                        Switch(
+                            checked = useHttps,
+                            onCheckedChange = { useHttps = it },
+                            colors = SwitchDefaults.colors(checkedTrackColor = NeonGreen)
+                        )
+                    }
+
                     OutlinedTextField(
                         value = workerUrl, onValueChange = { workerUrl = it },
                         label = { Text("آدرس پراکسی هوش مصنوعی (Cloudflare Worker)") },
@@ -216,10 +242,11 @@ fun SettingsScreen(viewModel: VizitorViewModel) {
                     )
 
                     // ── پیش‌نمایش زندهٔ آدرس کامل وب‌سرویس ──────────────────────
-                    val previewUrl = remember(ip, httpPort, apiPath) {
+                    val previewUrl = remember(ip, httpPort, apiPath, useHttps) {
                         val path = apiPath.trim().trim('/')
-                        "https://${ip.trim().ifBlank { "…" }}:${httpPort.ifBlank { "…" }}/" +
-                                (if (path.isEmpty()) "" else "$path/") + "api.php"
+                        (if (useHttps) "https" else "http") +
+                                "://${ip.trim().ifBlank { "…" }}:${httpPort.ifBlank { "…" }}/" +
+                                (if (path.isEmpty()) "" else "$path/") + "index.php"
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -246,6 +273,7 @@ fun SettingsScreen(viewModel: VizitorViewModel) {
                                         dbPort = dbPort.toIntOrNull() ?: 1433,
                                         apiPath = apiPath.trim(),
                                         apiKey = apiKey.trim(),
+                                        useHttps = useHttps,
                                         workerUrl = workerUrl.trim()
                                     )
                                 )
@@ -269,10 +297,12 @@ fun SettingsScreen(viewModel: VizitorViewModel) {
                             dbPort = ServerConfig().dbPort.toString()
                             apiPath = ServerConfig().apiPath
                             apiKey = ServerConfig().apiKey
+                            useHttps = ServerConfig().useHttps
                             viewModel.saveConfig(
                                 config.copy(
                                     serverIp = ip, httpPort = httpPort.toInt(),
-                                    dbPort = dbPort.toInt(), apiPath = apiPath, apiKey = apiKey
+                                    dbPort = dbPort.toInt(), apiPath = apiPath, apiKey = apiKey,
+                                    useHttps = useHttps
                                 )
                             )
                         },

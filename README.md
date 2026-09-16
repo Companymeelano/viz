@@ -8,11 +8,16 @@
 
 | فایل | حجم | برای چه کسی |
 |---|---|---|
-| **[Vizitor-v2.17.1-release.apk](https://github.com/Companymeelano/viz/releases/download/v2.17.1/Vizitor-v2.17.1-release.apk)** | ۲۵ مگابایت | کاربر نهایی — بهینه‌شده با R8 |
-| **[Vizitor-v2.17.1-debug.apk](https://github.com/Companymeelano/viz/releases/download/v2.17.1/Vizitor-v2.17.1-debug.apk)** | ۴۴ مگابایت | تست و عیب‌یابی (شناسهٔ جدا: `ir.atiran.vizitor.debug`) |
+| **[Vizitor-v2.17.2-release.apk](https://github.com/Companymeelano/viz/releases/download/v2.17.2/Vizitor-v2.17.2-release.apk)** | ۲۵ مگابایت | کاربر نهایی — بهینه‌شده با R8 |
+| **[Vizitor-v2.17.2-debug.apk](https://github.com/Companymeelano/viz/releases/download/v2.17.2/Vizitor-v2.17.2-debug.apk)** | ۴۴ مگابایت | تست و عیب‌یابی (شناسهٔ جدا: `ir.atiran.vizitor.debug`) |
 
 همهٔ نسخه‌ها: [صفحهٔ Releases](https://github.com/Companymeelano/viz/releases) ·
 برای نصب، در گوشی «نصب از منابع نامشخص» را برای مرورگر/فایل‌منیجر فعال کنید.
+
+> 🆕 در نسخهٔ **2.17.2**: کلید **«اتصال امن (HTTPS)»** به تنظیمات اضافه شد تا اپ روی
+> شبکهٔ داخلی شرکت (سرور HTTP) هم بتواند به وب‌سرویس وصل شود؛ پیش از این اپ فقط با
+> HTTPS کار می‌کرد. برای نصب سرور، به **[بستهٔ نصب سرور](#️-نصب-و-راهاندازی-سرور-فایل-نصب)**
+> در همین صفحه مراجعه کنید.
 
 > 🔑 نسخهٔ release فعلی با **کلید debug** امضا شده است (چون `keystore.properties` تنظیم نشده).
 > برای انتشار رسمی، کلید اختصاصی خود را در بخش ۳ پایین تنظیم کنید — در آن صورت باید نسخهٔ
@@ -20,10 +25,41 @@
 
 | مورد | مقدار |
 |---|---|
-| نسخه | `2.17.1` (versionCode `21701`) |
+| نسخه | `2.17.2` (versionCode `21702`) |
 | Kotlin / AGP / Gradle | 2.0.21 / 8.7.3 / 8.9 |
 | compileSdk / targetSdk / minSdk | 35 / 35 / 24 |
 | پشته | Jetpack Compose، Room، WorkManager، Retrofit، CameraX + ML Kit |
+
+---
+
+## 🖥️ نصب و راه‌اندازی سرور (فایل نصب)
+
+بستهٔ کامل نصب خودکار سرور در پوشهٔ **[`server/`](server/)** این مخزن است و به‌صورت
+فایل زیپ آمادهٔ دانلود هم منتشر می‌شود:
+
+| فایل | توضیح |
+|---|---|
+| **[vizitor-server-1.0.0.zip](https://github.com/Companymeelano/viz/releases/download/server-v1.0.0/vizitor-server-1.0.0.zip)** | بستهٔ نصب خودکار سرور (اسکریپت + وب‌سرویس + اسکریپت‌های SQL + راهنما) |
+
+اسکریپت `Setup-VizitorServer.ps1` با یک بار اجرا (با دسترسی Administrator) این‌ها را
+خودکار انجام می‌دهد:
+
+1. نصب و راه‌اندازی **IIS** همراه CGI/FastCGI
+2. نصب **PHP 8.3** (NTS x64) و ساخت `php.ini` مناسب وب‌سرویس
+3. نصب **درایور Microsoft SQLSRV** (`sqlsrv` + `pdo_sqlsrv`)
+4. ساخت سایت IIS روی پورت دلخواه + هندر PHP + `httpErrors=PassThrough`
+5. فعال‌سازی TCP/IP و پورت ۱۴۳۳ در **SQL Server** + احراز هویت Mixed Mode (با بکاپ رجیستری)
+6. ساخت دیتابیس `AtiranVizitor`، کاربر SQL کم‌دسترسی و اجرای اسکریپت‌های ساختار + داده نمونه
+7. ساخت کاربر ویزیتور و تولید **کلید API** و نوشتن `config.php`
+8. قاعدهٔ فایروال + آزمون سرتاسری `action=ping` و `action=login` و چاپ کارت تنظیمات اپ
+
+```powershell
+# روی سرور ویندوز، در پوشهٔ استخراج‌شده:
+.\Setup-VizitorServer.ps1 -Port 8731
+```
+
+راهنمای کامل (پارامترها، نصب دستی، اتصال به جداول واقعی آتیران، عیب‌یابی):
+**[server/README.md](server/README.md)**
 
 ---
 

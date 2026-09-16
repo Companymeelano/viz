@@ -5,6 +5,11 @@
  *  ─────────────────────────────────────────────────────────────────────────
  *  IP سرور، پورت وب‌سرویس، پورت 1433 (جهت نمایش/لاگ)، کلید API و آدرس
  *  پراکسی هوش مصنوعی (Cloudflare Worker) به‌صورت امن ذخیره می‌شوند.
+ *
+ *  نکتهٔ مهم دربارهٔ «اتصال امن»: کلید useHttps مشخص می‌کند آدرس وب‌سرویس با
+ *  https ساخته شود یا http. برای شبکهٔ داخلی شرکت (نصب پیش‌فرض سرور روی HTTP)
+ *  این کلید را خاموش کنید؛ برای دامنه با گواهی معتبر (مثل api.vizitor.local)
+ *  روشن بگذارید.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 package ir.atiran.vizitor.data.repository
@@ -26,12 +31,16 @@ data class ServerConfig(
     val dbPort: Int = 1433,
     val apiPath: String = "",
     val apiKey: String = "",
+    /** true = https (پیش‌فرض امن) | false = http برای شبکهٔ داخلی بدون گواهی */
+    val useHttps: Boolean = true,
     val workerUrl: String = "https://vizitor-ai-proxy.YOUR-SUBDOMAIN.workers.dev",
     val geminiModel: String = "gemini-1.5-flash",
     val autoSync: Boolean = true,
     val lastSyncAt: Long = 0L
 ) {
-    val baseUrl: String get() = if (apiPath.isBlank()) "https://$serverIp:$httpPort/" else "https://$serverIp:$httpPort/${apiPath.trimStart('/').trimEnd('/')}/"
+    val scheme: String get() = if (useHttps) "https" else "http"
+    val baseUrl: String get() = if (apiPath.isBlank()) "$scheme://$serverIp:$httpPort/"
+        else "$scheme://$serverIp:$httpPort/${apiPath.trimStart('/').trimEnd('/')}/"
 }
 
 class SettingsRepository(private val context: Context) {
@@ -42,6 +51,7 @@ class SettingsRepository(private val context: Context) {
         val DB_PORT = longPreferencesKey("db_port")
         val API_PATH = stringPreferencesKey("api_path")
         val API_KEY = stringPreferencesKey("api_key")
+        val USE_HTTPS = booleanPreferencesKey("use_https")
         val WORKER_URL = stringPreferencesKey("worker_url")
         val GEMINI_MODEL = stringPreferencesKey("gemini_model")
         val AUTO_SYNC = booleanPreferencesKey("auto_sync")
@@ -55,6 +65,7 @@ class SettingsRepository(private val context: Context) {
             dbPort = (p[Keys.DB_PORT] ?: 1433L).toInt(),
             apiPath = p[Keys.API_PATH] ?: ServerConfig().apiPath,
             apiKey = p[Keys.API_KEY] ?: ServerConfig().apiKey,
+            useHttps = p[Keys.USE_HTTPS] ?: ServerConfig().useHttps,
             workerUrl = p[Keys.WORKER_URL] ?: ServerConfig().workerUrl,
             geminiModel = p[Keys.GEMINI_MODEL] ?: ServerConfig().geminiModel,
             autoSync = p[Keys.AUTO_SYNC] ?: true,
@@ -69,6 +80,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.DB_PORT] = config.dbPort.toLong()
             p[Keys.API_PATH] = config.apiPath
             p[Keys.API_KEY] = config.apiKey
+            p[Keys.USE_HTTPS] = config.useHttps
             p[Keys.WORKER_URL] = config.workerUrl
             p[Keys.GEMINI_MODEL] = config.geminiModel
             p[Keys.AUTO_SYNC] = config.autoSync
