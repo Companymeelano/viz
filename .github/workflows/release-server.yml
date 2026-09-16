@@ -1,0 +1,115 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  Vizitor — آتیران ویزیتور | انتشار بستهٔ نصب سرور (IIS + PHP + SQL Server)
+#  Developed by Milano Technical Team, Milad Yaghoobi
+#  ─────────────────────────────────────────────────────────────────────────
+#  با هر تغییر در پوشهٔ server/ این گردش‌کار بستهٔ نصب را زیپ می‌کند و به‌عنوان
+#  Release با تگ server-v<version> منتشر می‌کند تا لینک دانلود دائمی داشته باشد.
+#  نسخهٔ بسته از فایل server/VERSION خوانده می‌شود.
+# ═══════════════════════════════════════════════════════════════════════════
+name: Release Server Package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, arena/01a0a879-viz]
+    paths:
+      - 'server/**'
+      - '.github/workflows/release-server.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-server-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Package + publish server installer
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read package version
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d ' \r\n\t' < server/VERSION)"
+          if [ -z "$VERSION" ]; then
+            echo "::error::فایل server/VERSION خالی است."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "📦 نسخهٔ بستهٔ سرور: $VERSION"
+
+      - name: Lint PHP files (syntax check)
+        run: |
+          set -euo pipefail
+          errors=0
+          while IFS= read -r file; do
+            # lint فقط با php اگر روی رانر موجود بود (در غیر این صورت رد می‌شود)
+            if command -v php >/dev/null 2>&1; then
+              php -l "$file" || errors=$((errors+1))
+            fi
+          done < <(find server/web -name '*.php')
+          if [ "$errors" -ne 0 ]; then
+            echo "::error::$errors فایل PHP دارای خطای نگارشی است."
+            exit 1
+          fi
+          echo "✅ بررسی نگارشی PHP انجام شد."
+
+      - name: Build zip package
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          STAGE="vizitor-server-$VERSION"
+          mkdir -p "dist/$STAGE"
+          cp -r server/. "dist/$STAGE/"
+          rm -f "dist/$STAGE/VERSION"
+          cd dist
+          zip -qr "vizitor-server-$VERSION.zip" "$STAGE"
+          echo "── محتوای بسته ──"
+          unzip -l "vizitor-server-$VERSION.zip"
+          ls -la
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: server-v${{ steps.version.outputs.version }}
+          name: بستهٔ نصب سرور آتیران ویزیتور v${{ steps.version.outputs.version }}
+          make_latest: false
+          body: |
+            ## بستهٔ نصب و راه‌اندازی خودکار سرور آتیران ویزیتور
+
+            این بسته شامل نصب‌کنندهٔ خودکار IIS + PHP 8.3 + درایور SQLSRV + اتصال به
+            SQL Server، وب‌سرویس PHP با ۸ اندپوینت اپ، اسکریپت‌های ساخت دیتابیس
+            (`AtiranVizitor`) و راهنمای کامل فارسی است.
+
+            ### اجرا روی سرور ویندوز (PowerShell با دسترسی Administrator)
+            ```powershell
+            Expand-Archive .\vizitor-server-${{ steps.version.outputs.version }}.zip -DestinationPath C:\VizitorSetup
+            cd C:\VizitorSetup\vizitor-server-${{ steps.version.outputs.version }}
+            .\Setup-VizitorServer.ps1 -Port 8731
+            ```
+
+            در پایان نصب، «کارت تنظیمات اپ» چاپ می‌شود (آدرس سرور، پورت، کلید API،
+            نام کاربری و رمز) — همان مقادیر را در اپ → تنظیمات → پیکربندی سرور وارد کنید.
+
+            > ⚠️ کلید «اتصال امن (HTTPS)» از نسخهٔ **v2.17.2** اپ اضافه شده است؛ برای
+            > نصب روی شبکهٔ داخلی (سرور HTTP) از APK نسخهٔ v2.17.2 یا جدیدتر استفاده کنید.
+
+            راهنمای کامل: [`server/README.md`](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/server/README.md)
+          files: dist/*.zip
+          fail_on_unmatched_files: true
+
+      - name: Summary
+        run: |
+          {
+            echo "### بستهٔ نصب سرور منتشر شد ✅"
+            echo ""
+            echo "- تگ: \`server-v${{ steps.version.outputs.version }}\`"
+            echo "- فایل: \`vizitor-server-${{ steps.version.outputs.version }}.zip\`"
+          } >> "$GITHUB_STEP_SUMMARY"

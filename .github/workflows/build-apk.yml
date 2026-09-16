@@ -21,6 +21,9 @@ on:
       - '**.md'
       - 'design/**'
       - '**.zip'
+      # تغییرات بستهٔ سرور، بیلد APK را بی‌دلیل تکرار نکنند
+      # (انتشار بستهٔ سرور در گردش‌کار release-server.yml انجام می‌شود)
+      - 'server/**'
   pull_request:
     branches: [main]
 
