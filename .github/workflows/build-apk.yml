@@ -1,0 +1,103 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  Vizitor — آتیران ویزیتور | بیلد خودکار APK (debug + release)
+#  Developed by Milano Technical Team, Milad Yaghoobi
+#  ─────────────────────────────────────────────────────────────────────────
+#  خروجی‌ها:
+#   • Vizitor-v<version>-release.apk  (R8/minify فعال، امضاشده)
+#   • Vizitor-v<version>-debug.apk    (برای عیب‌یابی)
+#  اگر فایل keystore.properties در ریشهٔ پروژه نباشد، نسخهٔ release با کلید
+#  debug امضا می‌شود تا APK نصب‌شدنی باشد (برای انتشار رسمی کلید را تنظیم کنید).
+#  نکته: لاگ بیلد فقط به‌صورت Artifact آپلود می‌شود و هرگز در مخزن کامیت نمی‌شود.
+# ═══════════════════════════════════════════════════════════════════════════
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, arena/01a0a879-viz]
+    paths-ignore:
+      - '**.md'
+      - 'design/**'
+      - '**.zip'
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build debug + release APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Toolchain info
+        run: |
+          java -version
+          gradle --version
+
+      - name: Verify repo Gradle wrapper
+        continue-on-error: true
+        run: chmod +x gradlew && ./gradlew --version
+
+      - name: Build APKs
+        run: |
+          set +e
+          gradle clean assembleDebug assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
+          rc=${PIPESTATUS[0]}
+          echo "build_exit=$rc" >> "$GITHUB_ENV"
+          exit "$rc"
+
+      - name: Collect APKs
+        if: success()
+        run: |
+          set -euo pipefail
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -1)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/Vizitor-v${VERSION}-release.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk     "dist/Vizitor-v${VERSION}-debug.apk"
+          ls -la dist/
+
+      - name: Upload release APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vizitor-${{ env.VERSION }}-release
+          path: dist/Vizitor-${{ env.VERSION }}-release.apk
+          if-no-files-found: error
+
+      - name: Upload debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vizitor-${{ env.VERSION }}-debug
+          path: dist/Vizitor-${{ env.VERSION }}-debug.apk
+          if-no-files-found: error
+
+      - name: Upload build log (only when the build fails)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore

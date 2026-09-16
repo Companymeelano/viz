@@ -32,3 +32,12 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# Release signing (هرگز کامیت نشود)
+keystore.properties
+*.jks.enc
+
+# Build outputs / artifacts
+dist/
+build.log
+app/build/
