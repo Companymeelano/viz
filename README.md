@@ -39,7 +39,7 @@
 
 | فایل | توضیح |
 |---|---|
-| **[vizitor-server-1.0.0.zip](https://github.com/Companymeelano/viz/releases/download/server-v1.0.0/vizitor-server-1.0.0.zip)** | بستهٔ نصب خودکار سرور (اسکریپت + وب‌سرویس + اسکریپت‌های SQL + راهنما) |
+| **[vizitor-server-1.0.1.zip](https://github.com/Companymeelano/viz/releases/download/server-v1.0.1/vizitor-server-1.0.1.zip)** | بستهٔ نصب خودکار سرور (اسکریپت + وب‌سرویس + اسکریپت‌های SQL + راهنما) |
 
 اسکریپت `Setup-VizitorServer.ps1` با یک بار اجرا (با دسترسی Administrator) این‌ها را
 خودکار انجام می‌دهد:

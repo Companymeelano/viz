@@ -57,8 +57,13 @@ function vizitor_require_user(PDO $pdo, array $config): array
         vizitor_fail('حساب کاربری غیرفعال است.', 403);
     }
 
-    // ExpiresAt در دیتابیس UTC است (DATETIME2 با SYSUTCDATETIME)
-    $expiresTs = strtotime((string) $row['ExpiresAt'] . ' UTC');
+    // ExpiresAt در دیتابیس UTC است (DATETIME2 با SYSUTCDATETIME).
+    // درایور sqlsrv ممکن است بخش اعشاری ثانیه را هم برگرداند؛ قبل از پارس حذف می‌شود.
+    $expiresRaw = (string) $row['ExpiresAt'];
+    if (preg_match('/^(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2})/', $expiresRaw, $m)) {
+        $expiresRaw = $m[1];
+    }
+    $expiresTs = strtotime($expiresRaw . ' UTC');
     if ($expiresTs !== false && $expiresTs < time()) {
         vizitor_fail('نشست شما منقضی شده است — دوباره وارد شوید.', 401);
     }
