@@ -2,12 +2,12 @@
 #  Vizitor — آتیران ویزیتور | بیلد خودکار APK (debug + release)
 #  Developed by Milano Technical Team, Milad Yaghoobi
 #  ─────────────────────────────────────────────────────────────────────────
-#  خروجی‌ها:
-#   • Vizitor-v<version>-release.apk  (R8/minify فعال، امضاشده)
-#   • Vizitor-v<version>-debug.apk    (برای عیب‌یابی)
-#  اگر فایل keystore.properties در ریشهٔ پروژه نباشد، نسخهٔ release با کلید
-#  debug امضا می‌شود تا APK نصب‌شدنی باشد (برای انتشار رسمی کلید را تنظیم کنید).
-#  نکته: لاگ بیلد فقط به‌صورت Artifact آپلود می‌شود و هرگز در مخزن کامیت نمی‌شود.
+#  مراحل:
+#   ۱) بیلد debug  → آپلود آرتیفکت (همیشه نصب‌شدنی برای تست)
+#   ۲) بیلد release → آپلود آرتیفکت (R8 فعال)
+#  در صورت خطا، خلاصهٔ خطاهای Gradle به‌صورت Annotation منتشر می‌شود تا بدون
+#  دانلود لاگ، علت شکست قابل مشاهده باشد.
+#  لاگ بیلد فقط به‌صورت Artifact آپلود می‌شود و هرگز در مخزن کامیت نمی‌شود.
 # ═══════════════════════════════════════════════════════════════════════════
 name: Build APK
 
@@ -33,7 +33,7 @@ jobs:
   build:
     name: Build debug + release APKs
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -55,38 +55,28 @@ jobs:
           java -version
           gradle --version
 
-      - name: Verify repo Gradle wrapper
-        continue-on-error: true
-        run: chmod +x gradlew && ./gradlew --version
-
-      - name: Build APKs
+      # ── ۱) APK دیباگ (همیشه ساخته می‌شود و نصب‌شدنی است) ────────────────
+      - name: Build debug APK
+        id: build_debug
         run: |
           set +e
-          gradle clean assembleDebug assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
+          gradle clean assembleDebug --no-daemon --console=plain --stacktrace 2>&1 | tee build-debug.log
           rc=${PIPESTATUS[0]}
-          echo "build_exit=$rc" >> "$GITHUB_ENV"
+          if [ "$rc" -ne 0 ]; then
+            echo "report_debug_failed=1" >> "$GITHUB_ENV"
+            ./scripts/report-gradle-errors.sh build-debug.log "debug"
+          fi
           exit "$rc"
 
-      - name: Collect APKs
+      - name: Collect debug APK
         if: success()
         run: |
           set -euo pipefail
           VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -1)
-          echo "Detected version: $VERSION"
-          mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk "dist/Vizitor-v${VERSION}-release.apk"
-          cp app/build/outputs/apk/debug/app-debug.apk     "dist/Vizitor-v${VERSION}-debug.apk"
-          ls -la dist/
-          # برای استپ‌های بعدی (آپلود آرتیفکت) نیز در دسترس باشد
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-
-      - name: Upload release APK
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Vizitor-${{ env.VERSION }}-release
-          path: dist/Vizitor-${{ env.VERSION }}-release.apk
-          if-no-files-found: error
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/Vizitor-v${VERSION}-debug.apk"
+          ls -la dist/
 
       - name: Upload debug APK
         if: success()
@@ -96,10 +86,64 @@ jobs:
           path: dist/Vizitor-${{ env.VERSION }}-debug.apk
           if-no-files-found: error
 
-      - name: Upload build log (only when the build fails)
-        if: failure()
+      # ── ۲) APK ریلیز (R8/minify) — شکست آن، آرتیفکت دیباگ را باطل نمی‌کند ─
+      - name: Build release APK
+        id: build_release
+        if: success()
+        continue-on-error: true
+        run: |
+          set +e
+          gradle assembleRelease --no-daemon --console=plain --stacktrace 2>&1 | tee build-release.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "report_release_failed=1" >> "$GITHUB_ENV"
+            ./scripts/report-gradle-errors.sh build-release.log "release"
+          fi
+          exit "$rc"
+
+      - name: Collect and upload release APK
+        if: steps.build_release.outcome == 'success'
+        run: |
+          set -euo pipefail
+          cp app/build/outputs/apk/release/app-release.apk "dist/Vizitor-v${VERSION}-release.apk"
+          ls -la dist/
+          echo "release_ok=1" >> "$GITHUB_ENV"
+
+      - name: Upload release APK
+        if: steps.build_release.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: build-log
-          path: build.log
+          name: Vizitor-${{ env.VERSION }}-release
+          path: dist/Vizitor-${{ env.VERSION }}-release.apk
+          if-no-files-found: error
+
+      # ── خلاصهٔ نتیجه ────────────────────────────────────────────────────
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## نتیجهٔ بیلد Vizitor"
+            echo ""
+            if [ "${report_debug_failed:-0}" = "1" ]; then
+              echo "- ❌ بیلد **debug** ناموفق بود (خطاها در Annotation بالای همین Job)"
+            else
+              echo "- ✅ بیلد **debug** موفق — آرتیفکت: \`Vizitor-v${VERSION:-?}-debug.apk\`"
+            fi
+            if [ "${report_release_failed:-0}" = "1" ]; then
+              echo "- ❌ بیلد **release** ناموفق بود (خطاها در Annotation)"
+            elif [ "${release_ok:-0}" = "1" ]; then
+              echo "- ✅ بیلد **release** موفق — آرتیفکت: \`Vizitor-v${VERSION}-release.apk\`"
+            else
+              echo "- ⏭️ بیلد **release** اجرا نشد (وابسته به موفقیت debug)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build logs (فقط در صورت خطا)
+        if: failure() || env.report_release_failed == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            build-debug.log
+            build-release.log
           if-no-files-found: ignore
